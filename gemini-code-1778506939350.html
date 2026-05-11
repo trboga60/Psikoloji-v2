@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akademik Performans Araştırması</title>
+    <script src="jatos.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f9; color: #333; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { background: #fff; padding: 30px 40px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 750px; width: 100%; text-align: center; }
+        h2 { color: #1a73e8; }
+        .hidden { display: none; }
+        .btn { background: #1a73e8; color: #fff; border: none; padding: 12px 25px; font-size: 16px; border-radius: 6px; cursor: pointer; margin-top: 20px; transition: 0.3s; }
+        .btn:hover { background: #1557b0; }
+        .form-group { text-align: left; margin-bottom: 20px; padding: 15px; border-bottom: 1px solid #eee; }
+        .question { font-weight: bold; margin-bottom: 10px; display: block; }
+        input[type="text"], input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .likert { display: flex; justify-content: space-between; margin-top: 10px; }
+        .anagram-box { font-size: 2.5em; font-weight: bold; letter-spacing: 10px; margin: 25px 0; color: #2c3e50; }
+        .manipulation { background: #fff4f4; border-left: 5px solid #d93025; padding: 20px; text-align: left; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container" id="app">
+    <div id="step-0" class="step">
+        <h2>Araştırmaya Hoş Geldiniz</h2>
+        <p>Lütfen devam etmeden önce aşağıdaki demografik bilgileri doldurunuz.</p>
+        <div class="form-group">
+            <label class="question">Katılımcı Numarası (Araştırmacıdan aldığınız):</label>
+            <input type="number" id="p_id" required>
+        </div>
+        <div class="form-group">
+            <label class="question">Yaşınız:</label>
+            <input type="number" id="p_age">
+        </div>
+        <div class="form-group">
+            <label class="question">Cinsiyetiniz:</label>
+            <select id="p_gender">
+                <option value="">Seçiniz</option>
+                <option value="Kadin">Kadın</option>
+                <option value="Erkek">Erkek</option>
+                <option value="Diger">Diğer / Belirtmek İstemiyorum</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="question">Üniversite Bölümünüz:</label>
+            <input type="text" id="p_dept">
+        </div>
+        <button class="btn" onclick="submitDemographics()">Deneye Başla</button>
+    </div>
+
+    <div id="step-1" class="step hidden">
+        <h2>Bölüm 1: Akademik Öz Yeterlilik</h2>
+        <div id="ozyet-list"></div>
+        <button class="btn" onclick="submitOzyet()">Devam Et</button>
+    </div>
+
+    <div id="step-2" class="step hidden">
+        <h2>Bölüm 2: Mantıksal Muhakeme</h2>
+        <p>Aşağıdaki 10 soruyu dikkatle okuyup en mantıklı seçeneği işaretleyiniz.</p>
+        <div id="logic-list"></div>
+        <button class="btn" onclick="submitLogic()">Sonuçları Analiz Et</button>
+    </div>
+
+    <div id="step-3" class="step hidden">
+        <h2>Sistem Analiz Sonucu</h2>
+        <div id="manipulation-msg" class="manipulation"></div>
+        <button class="btn" onclick="showStep(4)">Son Göreve Geç</button>
+    </div>
+
+    <div id="step-4" class="step hidden">
+        <h2>Bölüm 3: Kelime Üretme Testi</h2>
+        <p style="text-align: left;">Birazdan karşınıza karışık harfler gelecektir. Bu harflerin <b>tamamını</b> kullanarak anlamlı bir kelime üretin. Bulamazsanız kutuyu boş bırakıp 'Pas Geç' diyebilirsiniz.</p>
+        <button class="btn" onclick="startAnagramTask()">Anladım, Başla</button>
+    </div>
+
+    <div id="step-5" class="step hidden">
+        <h2 id="ana-header">Kelime 1/6</h2>
+        <div id="ana-word" class="anagram-box"></div>
+        <input type="text" id="ana-input" placeholder="Cevabınız..." autocomplete="off">
+        <br>
+        <button class="btn" onclick="handleAnagramNext()">Cevapla / Pas Geç</button>
+    </div>
+
+    <div id="step-6" class="step hidden">
+        <h2>Deney Tamamlandı</h2>
+        <p>Katılımınız için teşekkürler. Verileriniz güvenli bir şekilde sunucuya aktarıldı.</p>
+    </div>
+</div>
+
+<script>
+    let expData = { demographics: {}, ozyet: {}, logic: {}, anagrams: [], group: "" };
+    let startTime = 0;
+    let currentAnaIndex = 0;
+
+    const anagramList = [
+        { word: "E M K L A", solve: "KALEM", type: "warmup" },
+        { word: "K L N I A Ş T", solve: "UNSOLVABLE", type: "unsolvable" },
+        { word: "M E R T İ Z S", solve: "UNSOLVABLE", type: "unsolvable" },
+        { word: "B A L K I S U", solve: "UNSOLVABLE", type: "unsolvable" },
+        { word: "G E N L İ R Z", solve: "UNSOLVABLE", type: "unsolvable" },
+        { word: "D O R U M N A", solve: "UNSOLVABLE", type: "unsolvable" }
+    ];
+
+    const ozyetQuestions = [
+        "Zor akademik görevlerin üstesinden gelebilirim.",
+        "Derslerimde başarılı olmak için gerekli yeteneğe sahibim.",
+        "Beklenmedik akademik sorunlarla başa çıkabilirim.",
+        "Sınavlarda kendime güvenim tamdır.",
+        "En karmaşık konuları bile çaba gösterirsem öğrenebilirim.",
+        "Ödevlerimi yüksek kalitede tamamlayabilirim.",
+        "Akademik hedeflerime ulaşacağıma inanıyorum."
+    ];
+
+    const logicQuestions = [
+        { q: "Top ve sopa toplam 1.10 TL. Sopa toptan 1 TL pahalıysa top kaç kuruştur?", a: ["5 kuruş", "10 kuruş", "1 kuruş"] },
+        { q: "5 makine 5 parçayı 5 dakikada yaparsa, 100 makine 100 parçayı kaç dakikada yapar?", a: ["5", "100", "50"] },
+        { q: "Göldeki zambaklar her gün 2 katına çıkıyor. Göl 48 günde doluyorsa yarısı kaç günde dolar?", a: ["47", "24", "46"] },
+        { q: "Bir yarışta ikinciyi geçersen kaçıncı olursun?", a: ["İkinci", "Birinci", "Üçüncü"] },
+        { q: "3 elmanız vardı, 2'sini aldınız. Kaç elmanız var?", a: ["2", "1", "3"] },
+        { q: "Musa gemisine her hayvandan kaç tane aldı?", a: ["0 (Nuh aldı)", "2", "1"] },
+        { q: "Bazı aylar 31 çeker, kaç ayda 28 gün vardır?", a: ["12", "1", "6"] },
+        { q: "Bir kibritiniz var. Karanlık odada mum, lamba ve soba var. Önce hangisini yakarsınız?", a: ["Kibrit", "Mum", "Lamba"] },
+        { q: "Doktor 3 hap verdi ve yarım saat arayla al dedi. İlaçlar kaç dakikada biter?", a: ["60", "90", "30"] },
+        { q: "Sözlükte bile her zaman 'yanlış' yazılan kelime nedir?", a: ["Yanlış", "Hata", "Eksik"] }
+    ];
+
+    function showStep(n) {
+        document.querySelectorAll('.step').forEach(s => s.classList.add('hidden'));
+        document.getElementById(`step-${n}`).classList.remove('hidden');
+        window.scrollTo(0,0);
+    }
+
+    function submitDemographics() {
+        expData.demographics = {
+            id: document.getElementById('p_id').value,
+            age: document.getElementById('p_age').value,
+            gender: document.getElementById('p_gender').value,
+            dept: document.getElementById('p_dept').value
+        };
+        if(!expData.demographics.id) return alert("ID gerekli!");
+        
+        const grps = ["Kontrol", "Asagi_Dogru", "Yukari_Dogru"];
+        expData.group = grps[Math.floor(Math.random() * grps.length)];
+        
+        renderOzyet();
+        showStep(1);
+    }
+
+    function renderOzyet() {
+        let h = "";
+        ozyetQuestions.forEach((q, i) => {
+            h += `<div class='form-group'><label class='question'>${i+1}. ${q}</label><div class='likert'>`;
+            for(let v=1; v<=5; v++) h += `<label><input type="radio" name="oz_${i}" value="${v}"> ${v}</label>`;
+            h += `</div></div>`;
+        });
+        document.getElementById('ozyet-list').innerHTML = h;
+    }
+
+    function submitOzyet() {
+        ozyetQuestions.forEach((_, i) => {
+            let sel = document.querySelector(`input[name="oz_${i}"]:checked`);
+            expData.ozyet[i] = sel ? sel.value : "NA";
+        });
+        renderLogic();
+        showStep(2);
+    }
+
+    function renderLogic() {
+        let h = "";
+        logicQuestions.forEach((q, i) => {
+            h += `<div class='form-group'><label class='question'>${i+1}. ${q.q}</label>`;
+            q.a.forEach(opt => h += `<label style="display:block;"><input type="radio" name="l_${i}" value="${opt}"> ${opt}</label>`);
+            h += `</div>`;
+        });
+        document.getElementById('logic-list').innerHTML = h;
+    }
+
+    function submitLogic() {
+        logicQuestions.forEach((_, i) => {
+            let sel = document.querySelector(`input[name="l_${i}"]:checked`);
+            expData.logic[i] = sel ? sel.value : "NA";
+        });
+        setManipulation();
+        showStep(3);
+    }
+
+    function setManipulation() {
+        let msg = document.getElementById('manipulation-msg');
+        if(expData.group === "Asagi_Dogru") {
+            msg.innerHTML = "<b>ANALİZ SONUCU:</b> Skorunuz <b>%88</b>. Bu sonuçla üniversite öğrencilerinin genel ortalamasının (Ort: %45) <b>çok üzerindesiniz.</b>";
+        } else if(expData.group === "Yukari_Dogru") {
+            msg.innerHTML = "<b>ANALİZ SONUCU:</b> Skorunuz <b>%34</b>. Bu sonuçla üniversite öğrencilerinin genel ortalamasının (Ort: %85) <b>oldukça altındasınız.</b>";
+        } else {
+            msg.innerHTML = "Mantık testi tamamlandı. Bir sonraki aşamaya geçebilirsiniz.";
+        }
+    }
+
+    function startAnagramTask() {
+        showStep(5);
+        loadAnagram();
+    }
+
+    function loadAnagram() {
+        let item = anagramList[currentAnaIndex];
+        document.getElementById('ana-header').innerText = `Kelime ${currentAnaIndex + 1}/6 ${item.type === 'warmup' ? '(Isınma)' : ''}`;
+        document.getElementById('ana-word').innerText = item.word;
+        document.getElementById('ana-input').value = "";
+        startTime = performance.now();
+    }
+
+    function handleAnagramNext() {
+        let dur = (performance.now() - startTime).toFixed(0);
+        let ans = document.getElementById('ana-input').value || "PAS";
+        
+        expData.anagrams.push({
+            index: currentAnaIndex + 1,
+            word: anagramList[currentAnaIndex].word,
+            type: anagramList[currentAnaIndex].type,
+            response: ans,
+            time_ms: dur
+        });
+
+        if(currentAnaIndex < anagramList.length - 1) {
+            currentAnaIndex++;
+            loadAnagram();
+        } else {
+            finishExperiment();
+        }
+    }
+
+    function finishExperiment() {
+        showStep(6);
+        // MindProbe (JATOS) Veri Gönderimi
+        if (typeof jatos !== 'undefined') {
+            jatos.appendResultData(JSON.stringify(expData))
+                 .then(jatos.endStudy);
+        } else {
+            // Sunucu yoksa konsola ve indirmeye hazırla (fallback)
+            console.log("JATOS bulunamadı, veri:", expData);
+            let blob = new Blob([JSON.stringify(expData)], {type: "application/json"});
+            let a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `Data_Subject_${expData.demographics.id}.json`;
+            a.click();
+        }
+    }
+
+    // JATOS Hazır olduğunda çalışır
+    if (typeof jatos !== 'undefined') {
+        jatos.onLoad(function() {
+            console.log("MindProbe Bağlantısı Aktif.");
+        });
+    }
+</script>
+
+</body>
+</html>
